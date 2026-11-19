@@ -1,5 +1,5 @@
 ---
-title: "readmission-risk-audit"
+title: "Hospital Readmission Risk Audit"
 subtitle: "Predicting 30-day hospital readmission, and checking whether the predictions are trustworthy, useful and fair"
 author:
   - name: "Reagan Kesseku · Project brief · github.com/rkesseku/readmission-risk-audit"
