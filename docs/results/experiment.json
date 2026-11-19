@@ -1,0 +1,109 @@
+{
+  "selection_rule": "keep a step only if AUROC improves on both the validation and the calibration split; the test split is never used for selection",
+  "seed": 0,
+  "steps": [
+    {
+      "step": "0_original",
+      "history": false,
+      "rich_diag": false,
+      "params": "original",
+      "auroc": {
+        "val": 0.6769753113361265,
+        "calib": 0.6727931595184129,
+        "test": 0.6804635049072799
+      },
+      "n_features": 180,
+      "kept": true
+    },
+    {
+      "step": "1_history",
+      "history": true,
+      "rich_diag": false,
+      "params": "original",
+      "auroc": {
+        "val": 0.6889769068125388,
+        "calib": 0.6841196905662795,
+        "test": 0.688343297377656
+      },
+      "n_features": 187,
+      "test_auroc_diff_vs_original": {
+        "diff": 0.007879792470376068,
+        "ci": [
+          0.004060896916773998,
+          0.011913389939924031
+        ]
+      },
+      "kept": true
+    },
+    {
+      "step": "2_rich_diagnoses",
+      "history": true,
+      "rich_diag": true,
+      "params": "original",
+      "auroc": {
+        "val": 0.6898024082479826,
+        "calib": 0.6850838187464539,
+        "test": 0.6885256637178997
+      },
+      "n_features": 257,
+      "test_auroc_diff_vs_original": {
+        "diff": 0.00806215881061978,
+        "ci": [
+          0.0030325319685445247,
+          0.013547531729154984
+        ]
+      },
+      "kept": true
+    },
+    {
+      "step": "3_optuna",
+      "history": true,
+      "rich_diag": true,
+      "params": "optuna",
+      "auroc": {
+        "val": 0.6930121527777777,
+        "calib": 0.6872196413833767,
+        "test": 0.6882958018839138
+      },
+      "n_features": 257,
+      "test_auroc_diff_vs_original": {
+        "diff": 0.007832296976633901,
+        "ci": [
+          0.0026942442143128025,
+          0.013510385939022087
+        ]
+      },
+      "kept": true
+    }
+  ],
+  "optuna": {
+    "best_params": {
+      "max_depth": 7,
+      "learning_rate": 0.0368526674151172,
+      "min_child_weight": 2.0994440997888977,
+      "subsample": 0.5954855839717457,
+      "colsample_bytree": 0.47510840690144446,
+      "reg_lambda": 0.1093806167958321,
+      "reg_alpha": 0.026034044986388206,
+      "gamma": 3.764574733103346
+    },
+    "best_val_auroc": 0.6920078876668218,
+    "n_trials": 50
+  },
+  "final": {
+    "history": true,
+    "rich_diag": true,
+    "xgb_params": {
+      "n_estimators": 2000,
+      "learning_rate": 0.0368526674151172,
+      "max_depth": 7,
+      "min_child_weight": 2.0994440997888977,
+      "subsample": 0.5954855839717457,
+      "colsample_bytree": 0.47510840690144446,
+      "reg_lambda": 0.1093806167958321,
+      "reg_alpha": 0.026034044986388206,
+      "gamma": 3.764574733103346
+    }
+  },
+  "runtime_seconds": 2047.7
+}
