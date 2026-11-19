@@ -16,6 +16,11 @@ format:
 
 ```{=typst}
 #set text(hyphenate: false)
+// Three-rule tables (top, below header, bottom) and bold "Figure N" / "Table N" labels
+#set table.hline(stroke: 0.6pt)
+#show table: it => box(stroke: (top: 1pt, bottom: 1pt), it)
+#show figure.caption: it => context [#strong[#it.supplement~#it.counter.display(it.numbering)#it.separator]#it.body]
+#show table: set par(justify: false)
 #show heading.where(level: 1): it => block(above: 1.2em, below: 0.6em)[
   #set text(fill: rgb("#1f4e9e"), size: 14pt, weight: "bold")
   #it
@@ -76,10 +81,10 @@ The test set contains 19,944 encounters from 13,998 patients (11.1% readmitted).
 
 | Step (XGBoost) | Validation | Calibration | Test | Test Δ vs. original (95% CI) |
 |---|---|---|---|---|
-| 0. Original (v0.1.0) | 0.677 | 0.673 | 0.6805 | – |
-| 1. + history features | 0.689 | 0.684 | 0.6883 | +0.0079 (+0.0041, +0.0119) |
-| 2. + chapters, comorbidities | 0.690 | 0.685 | 0.6885 | +0.0081 (+0.0030, +0.0135) |
-| 3. + Optuna (50 trials) | 0.693 | 0.687 | 0.6883 | +0.0078 (+0.0027, +0.0135) |
+| (0) Original (v0.1.0) | 0.677 | 0.673 | 0.6805 | – |
+| (1) + history features | 0.689 | 0.684 | 0.6883 | +0.0079 (+0.0041, +0.0119) |
+| (2) + chapters, comorbidities | 0.690 | 0.685 | 0.6885 | +0.0081 (+0.0030, +0.0135) |
+| (3) + Optuna (50 trials) | 0.693 | 0.687 | 0.6883 | +0.0078 (+0.0027, +0.0135) |
 
 : AUROC by step. A step was kept only if it improved both validation and calibration AUROC; all three were kept. {#tbl-exp}
 
