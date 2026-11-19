@@ -1,4 +1,6 @@
 ---
+bibliography: references.bib
+bibliographystyle: apa
 linkcolor: "#1f4e9e"
 format:
   typst:
@@ -12,6 +14,8 @@ format:
 
 ```{=typst}
 #set text(hyphenate: false)
+#set bibliography(title: "References")
+#show bibliography: set par(justify: false)
 // Three-rule tables (top, below header, bottom) and bold "Figure N" / "Table N" labels
 #set table.hline(stroke: 0.6pt)
 #show table: it => box(stroke: (top: 1pt, bottom: 1pt), it)
@@ -25,6 +29,7 @@ format:
 #let glance(body) = block(fill: rgb("#eef3fb"), stroke: (left: 3pt + rgb("#1f4e9e")), inset: 10pt, radius: 2pt, width: 100%, body)
 // Header: red title, subtitle, author, repository link
 #align(center)[
+  #set par(justify: false)
   #text(size: 17pt, weight: "bold", fill: rgb("#b91c1c"))[Hospital Readmission Risk Audit]
   #v(0.5em)
   #text(size: 12pt, weight: "bold")[Predicting 30-day hospital readmission, and checking whether the predictions are trustworthy, useful and fair]
@@ -32,6 +37,8 @@ format:
   #text(size: 11pt)[Reagan Kesseku, Ph.D.]
   #linebreak()
   #text(size: 10pt)[#link("https://github.com/rkesseku/readmission-risk-audit")[github.com/rkesseku/readmission-risk-audit]]
+  #v(0.45em)
+  #text(size: 9.5pt)[#emph[Keywords:] hospital readmission; clinical prediction models; calibration; decision curve analysis; algorithmic fairness]
 ]
 #v(0.5em)
 ```
@@ -60,7 +67,7 @@ Published models usually report one number, the area under the ROC curve (AUROC)
 
 ## The data
 
-The UCI *Diabetes 130-US Hospitals* dataset (Strack et al., 2014) contains 101,766 inpatient encounters of patients with diabetes from 130 US hospitals between 1999 and 2008. Following Strack et al., encounters ending in death or hospice are removed and diagnoses are grouped into nine categories. This leaves 99,340 encounters from 69,987 patients; 11.3% were readmitted within 30 days.
+The UCI *Diabetes 130-US Hospitals* dataset [@strack2014] contains 101,766 inpatient encounters of patients with diabetes from 130 US hospitals between 1999 and 2008. Following Strack et al., encounters ending in death or hospice are removed and diagnoses are grouped into nine categories. This leaves 99,340 encounters from 69,987 patients; 11.3% were readmitted within 30 days.
 
 {{< pagebreak >}}
 
@@ -70,11 +77,11 @@ The UCI *Diabetes 130-US Hospitals* dataset (Strack et al., 2014) contains 101,7
 
 1. *Leak-free splits.* Patients are randomly assigned 60/20/20 to training, calibration and test sets, so no patient appears in two of them. 15% of training patients are held out for early stopping and tuning.
 2. *Features* (257 in total). Counts of prior care use, 23 diabetes-medication flags, age and one-hot categories (admission type, discharge destination, specialty, payer, diagnosis groups). *History features* are built only from each patient's **earlier** encounters: how many there were, how many were followed by a readmission, and prior inpatient days. The data has no dates, so encounter-id order serves as the time order; a unit test checks that changing a later encounter never changes an earlier feature. *Diagnosis detail* adds ICD-9 chapters and 13 comorbidity flags (heart failure, kidney disease, COPD and others).
-3. *Models:* regularised logistic regression, XGBoost (hyperparameters from a 50-trial Optuna search on the validation split) and a small neural network. The model is chosen by AUROC on the calibration set.
-4. *Calibration:* Platt scaling, isotonic regression and inductive Venn-Abers (Vovk and Petej, 2014), fitted on the calibration set. Venn-Abers was fixed in advance as the headline method.
+3. *Models:* regularised logistic regression, XGBoost [@chen2016xgboost] (hyperparameters from a 50-trial Optuna [@akiba2019] search on the validation split) and a small neural network. The model is chosen by AUROC on the calibration set.
+4. *Calibration:* Platt scaling, isotonic regression and inductive Venn-Abers [@vovk2014], fitted on the calibration set. Venn-Abers was fixed in advance as the headline method.
 5. *Metrics with honest uncertainty.* AUROC, precision-recall area, Brier score, expected calibration error (ECE) and calibration slope. CIs come from 500 bootstrap draws that resample *patients*, because stays from the same patient are correlated. Comparisons use paired bootstraps.
-6. *Utility and fairness.* Net benefit (Vickers and Elkin, 2006) across risk thresholds. For each age band, sex and recorded race: the observed/expected ratio (O/E), sensitivity (TPR) and false-positive rate at a 0.15 threshold, each with a CI.
-7. *Explanations:* exact TreeSHAP values, plus a model card covering intended use and caveats.
+6. *Utility and fairness.* Net benefit [@vickers2006] across risk thresholds. For each age band, sex and recorded race: the observed/expected ratio (O/E), sensitivity (TPR) and false-positive rate at a 0.15 threshold, each with a CI.
+7. *Explanations:* exact TreeSHAP values [@lundberg2020], plus a model card [@mitchell2019] covering intended use and caveats.
 
 Two commands reproduce everything: `readmit experiment` (the improvement study, about 35 CPU minutes) and `readmit run-all` (a few minutes). Every number in this brief is written to `docs/results/`.
 
@@ -153,4 +160,3 @@ readmit experiment && readmit run-all
 pytest && ruff check src tests
 ```
 
-References: Strack B. et al. (2014), *BioMed Research International*; Vovk V. & Petej I. (2014), Venn-Abers predictors, *UAI*; Vickers A. & Elkin E. (2006), decision curve analysis, *Medical Decision Making*; Mitchell M. et al. (2019), model cards, *FAT\**.

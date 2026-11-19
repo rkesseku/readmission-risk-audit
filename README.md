@@ -130,7 +130,7 @@ socioeconomic proxy; see the [model card](docs/model_card.md).
 
 Figures: [reliability](docs/results/reliability.png) · [ROC](docs/results/roc.png) ·
 [decision curve](docs/results/decision_curve.png) · [subgroup audit](docs/results/subgroup_audit.png) ·
-[importance](docs/results/importance.png). A 5-page summary is in [`docs/brief/brief.pdf`](docs/brief/brief.pdf).
+[importance](docs/results/importance.png). A short summary is in [`docs/brief/brief.pdf`](docs/brief/brief.pdf).
 
 ## Limitations
 
