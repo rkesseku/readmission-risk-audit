@@ -94,25 +94,25 @@ The test set contains 19,944 encounters from 13,998 patients (11.1% readmitted).
 ## Improving the model without peeking at the test set
 
 | Step (XGBoost) | Validation | Calibration | Test | Test Δ vs. original (95% CI) |
-|---|---|---|---|---|
+|----------------------------------|-------------|--------------|--------|-------------------------------|
 | (0) Original (v0.1.0) | 0.677 | 0.673 | 0.6805 | – |
 | (1) + history features | 0.689 | 0.684 | 0.6883 | +0.0079 (+0.0041, +0.0119) |
-| (2) + chapters, comorbidities | 0.690 | 0.685 | 0.6885 | +0.0081 (+0.0030, +0.0135) |
-| (3) + Optuna (50 trials) | 0.693 | 0.687 | 0.6883 | +0.0078 (+0.0027, +0.0135) |
+| (2) + chapters, comorbidities | 0.690 | 0.685 | **0.6885** | **+0.0081** (+0.0030, +0.0135) |
+| (3) + Optuna (50 trials) | **0.693** | **0.687** | 0.6883 | +0.0078 (+0.0027, +0.0135) |
 
-: AUROC by step. A step was kept only if it improved both validation and calibration AUROC; all three were kept. {#tbl-exp}
+: AUROC by step. A step was kept only if it improved both validation and calibration AUROC; all three were kept. Bold marks the highest value in each column. {#tbl-exp}
 
 History features delivered essentially the entire gain. Diagnosis detail and tuning passed the selection rule by small margins but did not move the test AUROC, a typical sign that the remaining signal is limited by what the data records, not by the model.
 
 ## Final models
 
 | Model | AUROC (95% CI) | PR area | Brier | ECE raw | ECE Venn-Abers |
-|---|---|---|---|---|---|
-| XGBoost (selected) | 0.688 (0.675–0.703) | 0.241 | 0.0926 | 0.0050 | 0.0076 |
+|--------------------------|--------------------------|----------|---------|----------|-------------------|
+| XGBoost (selected) | **0.688** (0.675–0.703) | **0.241** | **0.0926** | **0.0050** | **0.0076** |
 | Logistic regression | 0.676 (0.663–0.691) | 0.222 | 0.0938 | 0.0080 | 0.0080 |
-| Neural network | 0.657 (0.643–0.671) | 0.204 | 0.0952 | 0.0155 | 0.0076 |
+| Neural network | 0.657 (0.643–0.671) | 0.204 | 0.0952 | 0.0155 | **0.0076** |
 
-: Test-set results with the final features. XGBoost beats logistic regression by 0.012 AUROC (paired CI 0.006–0.017). {#tbl-results}
+: Test-set results with the final features. XGBoost beats logistic regression by 0.012 AUROC (paired CI 0.006–0.017). Bold marks the best value in each column (highest AUROC and PR area, lowest Brier score and ECE). {#tbl-results}
 
 *Calibration: a useful negative result.* XGBoost's raw probabilities were already well calibrated (ECE 0.005, slope 1.05), and Venn-Abers did not improve them (paired ECE difference −0.0026, CI −0.0056 to +0.0024). The calibration set happens to have a slightly higher readmission rate (11.7%) than the test set (11.1%), and the calibrators carry that offset over. The neural network, whose raw output was overconfident (slope 0.73), did benefit: its ECE fell from 0.016 to 0.008. Calibrate when there is evidence it is needed, not by reflex.
 
