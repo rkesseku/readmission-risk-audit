@@ -12,7 +12,13 @@ import pandas as pd
 
 from . import __version__
 from .calibration import CALIBRATORS
-from .config import FINAL_HISTORY, FINAL_RICH_DIAG, FINAL_XGB_PARAMS
+from .config import (
+    FINAL_HISTORY,
+    FINAL_RICH_DIAG,
+    FINAL_XGB_PARAMS,
+    LOGISTIC_C_GRID,
+    MLP_GRID,
+)
 from .data import Featurizer, clean, load_raw, patient_split
 from .fairness import max_gap, subgroup_audit
 from .metrics import (
@@ -27,7 +33,7 @@ from .metrics import (
     point_metrics,
     rates_at,
 )
-from .models import MODELS
+from .models import MODELS, tune_on_validation
 
 DEFAULT_THRESHOLD = 0.15
 DCA_THRESHOLDS = np.round(np.arange(0.05, 0.41, 0.01), 2)
@@ -54,6 +60,18 @@ def run_study(
     y_cal, y_test = calib["y"].to_numpy(), test["y"].to_numpy()
     g_test = test["patient_nbr"].to_numpy()
 
+    # Baselines are tuned on the same validation split as XGBoost's Optuna search (whose result
+    # is stored in config.FINAL_XGB_PARAMS); the calibration and test splits are not used here.
+    c_grid = [{"C": c} for c in (LOGISTIC_C_GRID[2:5] if fast else LOGISTIC_C_GRID)]
+    mlp_grid = MLP_GRID[5:7] if fast else MLP_GRID
+    mlp_fixed = {"max_iter": 30} if fast else {}
+    tuning = {
+        "logistic": tune_on_validation(MODELS["logistic"], c_grid, X_fit, y_fit, X_val, y_val,
+                                       seed=seed),
+        "mlp": tune_on_validation(MODELS["mlp"], mlp_grid, X_fit, y_fit, X_val, y_val,
+                                  seed=seed, **mlp_fixed),
+    }
+
     raw_scores: dict[str, dict[str, np.ndarray]] = {}
     fitted = {}
     for name, cls in MODELS.items():
@@ -62,6 +80,8 @@ def run_study(
             kwargs["params"] = FINAL_XGB_PARAMS
         if fast and name == "xgboost":
             kwargs["n_estimators"] = 200
+        if name in tuning:
+            kwargs.update(tuning[name]["best_params"])
         if fast and name == "mlp":
             kwargs["max_iter"] = 30
         model = cls(**kwargs).fit(X_fit, y_fit, X_val, y_val)
@@ -140,6 +160,17 @@ def run_study(
                              ("test", test))
             },
             "n_features": len(feat.columns_ or []),
+        },
+        "baseline_tuning": {
+            "rule": "grid search fitted on the training-fit split and scored by AUROC on the "
+                    "validation split used for the XGBoost Optuna search; calibration and test "
+                    "splits untouched",
+            **tuning,
+        },
+        "validation_split_auroc": {
+            "logistic": tuning["logistic"]["best_val_auroc"],
+            "xgboost": auroc_stat(y_val, fitted["xgboost"].predict_proba(X_val)),
+            "mlp": tuning["mlp"]["best_val_auroc"],
         },
         "calibration_split_auroc": cal_auroc,
         "selected_model": best_model,

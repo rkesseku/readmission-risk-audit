@@ -15,6 +15,9 @@ def test_run_study_end_to_end(raw):
             assert row["auroc_ci"][0] <= row["auroc_ci"][1]
     assert len(m["decision_curve"]["thresholds"]) == len(m["decision_curve"]["treat_all"])
     assert m["xgboost_mean_abs_shap_top15"]
+    for model in ("logistic", "mlp"):
+        assert m["baseline_tuning"][model]["best_params"]
+        assert len(m["baseline_tuning"][model]["grid"]) >= 2
     splits = m["data"]["splits"]
     assert sum(v["encounters"] for v in splits.values()) == m["data"]["encounters_after_cleaning"]
 

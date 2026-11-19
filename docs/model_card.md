@@ -8,7 +8,9 @@ Format adapted from Mitchell et al., 2019, "Model Cards for Model Reporting". Al
 * **Type:** gradient-boosted trees (XGBoost, `hist`, early stopping on a held-out 15% of training
   patients). Hyperparameters come from a 50-trial Optuna search on that validation split (depth 7,
   learning rate 0.037, subsample 0.60, column sample 0.48, gamma 3.76; full set in `src/readmit/config.py`).
-  The model was selected over L2 logistic regression and a 2-layer MLP by AUROC on the calibration split.
+  The model was selected over L2 logistic regression and an MLP by AUROC on the calibration split; both
+  baselines were tuned on the same validation split (logistic `C` = 1.0, MLP (128, 64) with `alpha` = 0.1).
+  On test, XGBoost leads the tuned logistic regression by +0.011 AUROC (paired CI +0.006 to +0.017).
 * **Inputs:** 257 features covering encounter utilisation, medications, demographics, admission and discharge
   categories, diagnosis groups, ICD-9 chapters and comorbidity flags, and patient-history features built only
   from the patient's earlier encounters.
@@ -39,13 +41,13 @@ these features must be computed from the patient's actual EHR history as of the 
 
 | Metric | Value |
 |---|---|
-| AUROC | 0.688 (0.675–0.703); v0.1.0 0.681, paired Δ +0.008 (+0.003 to +0.014) |
-| AUPRC (prevalence 0.111) | 0.241 |
+| AUROC | 0.688 (0.675–0.702); v0.1.0 0.681, paired Δ +0.008 (+0.003 to +0.014) |
+| AUPRC (prevalence 0.111) | 0.242 |
 | Brier score | 0.0926 |
-| ECE, raw / Venn-Abers | 0.0050 / 0.0076 |
-| Calibration slope / intercept, raw | 1.05 / 0.06 |
-| At threshold 0.15 (Venn-Abers): flag rate, TPR, PPV | 24.0%, 47.0%, 21.6% |
-| Net benefit at 0.15 vs. flag everyone | 0.0187 (0.0147–0.0229) vs. −0.046 |
+| ECE, raw / Venn-Abers | 0.0044 / 0.0089 |
+| Calibration slope / intercept, raw | 1.04 / 0.04 |
+| At threshold 0.15 (Venn-Abers): flag rate, TPR, PPV | 22.9%, 45.6%, 22.1% |
+| Net benefit at 0.15 vs. flag everyone | 0.0190 (0.0148–0.0233) vs. −0.046 |
 
 Of the v0.2.0 improvement, history features account for nearly all the test gain (+0.008). Comorbidity coding and
 tuning improved validation and calibration AUROC slightly but not test AUROC.
@@ -53,20 +55,20 @@ tuning improved validation and calibration AUROC slightly but not test AUROC.
 ## Calibration
 
 The raw model is well calibrated. Post-hoc recalibration on the calibration split, which has a slightly higher
-readmission rate (11.7% vs. 11.1% in test), did not improve ECE (paired Δ −0.0026, CI −0.0056 to +0.0024).
+readmission rate (11.7% vs. 11.1% in test), did not improve ECE (paired Δ −0.0045, CI −0.0052 to +0.0016).
 A deployment should monitor calibration-in-the-large locally and recalibrate only when drift is detected.
 
 ## Subgroup performance
 
-At threshold 0.15: TPR is 0.51 for women vs. 0.42 for men, and 0.54 for patients under 50 vs. 0.45–0.46 for older
-bands. Patients with race recorded as *unknown* (n = 459) or *Other* (n = 355) are flagged rarely (6.5%, 12.4%)
-and have TPR 0.12 and 0.33, with wide CIs. Asian patients (n = 138) are too few to estimate. These gaps must be
+At threshold 0.15: TPR is 0.49 for women vs. 0.41 for men, and 0.52 for patients under 50 vs. 0.44–0.45 for older
+bands. Patients with race recorded as *unknown* (n = 459) or *Other* (n = 355) are flagged rarely (6.5%, 11.5%)
+and have TPR 0.10 and 0.31, with wide CIs. Asian patients (n = 138) are too few to estimate. These gaps must be
 reviewed before any use, for example with group-specific thresholds or by examining why these records carry
 fewer risk signals.
 
 ## Ethical considerations
 
-* **Proxy variables:** `payer_code` ranks fourth by mean |SHAP|. It can encode socioeconomic status. It is kept
+* **Proxy variables:** `payer_code` ranks fifth by mean |SHAP|. It can encode socioeconomic status. It is kept
   here so that its influence is visible; a deployment should test whether removing it changes the subgroup gaps.
 * **Label bias:** the label records readmission to the same health system only. Patients readmitted elsewhere
   appear as negatives, and this may differ systematically by group. The same limitation applies to the history features.

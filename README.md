@@ -44,7 +44,7 @@ readmitted); the three diagnosis codes are mapped from ICD-9 to nine disease gro
 | Features | 8 utilisation counts, 23 diabetes-medication flags, ordinal age, one-hot categoricals (levels with < 20 training rows pooled as `Rare`), plus the blocks kept by the experiment below: 257 features |
 | History | built from each patient's **earlier** encounters only: number of earlier encounters, earlier <30-day and any-time readmissions, earlier inpatient days, maximum earlier inpatient and emergency counts, a first-encounter flag. `encounter_id` order is the time proxy because the public data has no dates |
 | Diagnoses | nine Strack groups, plus ICD-9 chapters for each of the three codes, 13 comorbidity flags (for example heart failure, chronic kidney disease, COPD, diabetic complications) and a distinct-chapter count |
-| Models | L2 logistic regression, XGBoost (early-stopped; hyperparameters from a 50-trial Optuna search on the validation split), a 2-layer MLP (scikit-learn) |
+| Models | L2 logistic regression, XGBoost (early-stopped; hyperparameters from a 50-trial Optuna search on the validation split), an MLP (scikit-learn). The two baselines are tuned on the **same validation split**: logistic `C` over a log grid 1e-4 to 1e2 (7 values), MLP width {(32), (64, 32), (128, 64)} × L2 `alpha` {1e-4, 1e-3, 1e-2, 1e-1}; calibration and test data are not used for tuning |
 | Selection | best AUROC on the **calibration** split; the test split is touched only for the final report |
 | Calibration | Platt scaling, isotonic regression, and inductive Venn-Abers (Vovk & Petej, 2014), all fitted on the calibration split; Venn-Abers was pre-specified as the headline calibrator |
 | Metrics | AUROC, AUPRC, Brier, ECE (10 equal-mass bins), calibration slope and intercept; 95% CIs from a 500-draw bootstrap that resamples **patients**, not encounters |
@@ -78,28 +78,38 @@ Almost all of the gain came from the history features. Richer diagnosis coding a
 selection rule by small margins on validation and calibration (+0.001 and +0.002 to +0.003) but added nothing
 measurable on test. Step 3's validation figure is optimistic because Optuna tuned on that split. The final
 configuration (all three steps) is stored in [`src/readmit/config.py`](src/readmit/config.py), and `run-all` uses it.
+`run-all` now fits XGBoost with 2 threads instead of 4, which moves its test AUROC from the experiment's 0.6883
+to 0.6880 (histogram sums are accumulated in a different order); the experiment table was not re-run.
 
-**Discrimination and calibration on the test split (final configuration)**
+**Discrimination and calibration on the test split (final configuration, tuned baselines)**
+
+The validation-split grid search chose logistic `C` = 1.0 (validation AUROC 0.683; the previous fixed
+`C` = 0.1 scored 0.683 as well, and every value from 1e-4 to 1e2 lay within 0.0035) and an MLP with
+hidden layers (128, 64) and `alpha` = 0.1 (validation AUROC 0.671 vs. 0.654 for the previous fixed (64, 32),
+`alpha` = 0.01). XGBoost scored 0.690 on the same split. Selection on the calibration split still picks
+XGBoost (calibration AUROC 0.686 vs. 0.669 logistic and 0.657 MLP).
 
 | Model | AUROC (95% CI) | AUPRC | Brier | ECE uncalibrated | ECE Venn-Abers |
 |---|---|---|---|---|---|
-| XGBoost (selected) | 0.688 (0.675–0.703) | 0.241 | 0.0926 | 0.0050 | 0.0076 |
-| Logistic regression | 0.676 (0.663–0.691) | 0.222 | 0.0938 | 0.0080 | 0.0080 |
-| MLP | 0.657 (0.643–0.671) | 0.204 | 0.0952 | 0.0155 | 0.0076 |
+| XGBoost (selected) | 0.688 (0.675–0.702) | 0.242 | 0.0926 | 0.0044 | 0.0089 |
+| Logistic regression (`C` = 1.0) | 0.677 (0.663–0.692) | 0.226 | 0.0936 | 0.0070 | 0.0078 |
+| MLP (128, 64), `alpha` = 0.1 | 0.667 (0.653–0.682) | 0.214 | 0.0949 | 0.0201 | 0.0086 |
 
-* XGBoost beats logistic regression by **+0.012 AUROC** (paired CI +0.006 to +0.017) and the MLP by
-  +0.031 (+0.023 to +0.040). The new features lifted the other two models as well (logistic 0.667 → 0.676,
-  MLP 0.629 → 0.657).
+* With both baselines tuned on the same validation split as XGBoost, XGBoost still beats logistic regression,
+  by **+0.011 AUROC** (paired CI +0.006 to +0.017; with the untuned `C` = 0.1 baseline it was +0.012,
+  +0.006 to +0.017). Tuning barely moved logistic regression (test AUROC 0.676 → 0.677), so the earlier
+  comparison was not materially inflated. The gap is real but small. Tuning helped the MLP more
+  (0.657 → 0.667), cutting XGBoost's lead over it from +0.031 to **+0.022** (+0.014 to +0.029).
 * **Post-hoc calibration did not help the selected model.** Raw XGBoost (trained on log-loss) was already
-  well calibrated (ECE 0.0050, slope 1.05). Venn-Abers gave ECE 0.0076; the paired difference is
-  −0.0026 (95% CI −0.0056 to +0.0024), so the two are statistically indistinguishable. The calibration split
+  well calibrated (ECE 0.0044, slope 1.04). Venn-Abers gave ECE 0.0089; the paired difference is
+  −0.0045 (95% CI −0.0052 to +0.0016), so the interval still includes zero. The calibration split
   happens to have a slightly higher readmission rate (11.7%) than test (11.1%), and the calibrators carry
-  that offset over. Calibration clearly helped the MLP (ECE 0.0155 → 0.0076, raw slope 0.73).
+  that offset over. Calibration clearly helped the MLP (ECE 0.0201 → 0.0086, raw slope 0.69).
   The lesson: recalibrate when there is evidence of miscalibration, not by reflex.
 
-**Clinical utility.** At the 0.15 threshold the selected model (Venn-Abers output) flags 24.0% of
-discharges, catches 47.0% of readmissions (TPR) with PPV 21.6%, and has net benefit
-**0.0187 (95% CI 0.0147–0.0229)** against −0.046 for flagging everyone (the original model scored 0.0155).
+**Clinical utility.** At the 0.15 threshold the selected model (Venn-Abers output) flags 22.9% of
+discharges, catches 45.6% of readmissions (TPR) with PPV 22.1%, and has net benefit
+**0.0190 (95% CI 0.0148–0.0233)** against −0.046 for flagging everyone (the original model scored 0.0155).
 Its net benefit is positive and above both default strategies at every threshold from 0.05 to 0.40
 ([decision curve](docs/results/decision_curve.png)).
 
@@ -107,25 +117,25 @@ Its net benefit is positive and above both default strategies at every threshold
 
 | Group | n | Flag rate | TPR (95% CI) | O/E (95% CI) |
 |---|---|---|---|---|
-| Female | 10,877 | 24.9% | 0.508 (0.475–0.537) | 0.96 (0.91–1.01) |
-| Male | 9,067 | 23.0% | 0.419 (0.375–0.456) | 0.91 (0.85–0.96) |
-| Age < 50 | 3,276 | 22.9% | 0.544 (0.479–0.623) | 0.94 (0.85–1.01) |
-| Age 50–69 | 7,816 | 21.2% | 0.458 (0.418–0.502) | 0.98 (0.91–1.04) |
-| Age 70+ | 8,852 | 26.9% | 0.454 (0.424–0.487) | 0.91 (0.86–0.96) |
-| African American | 3,775 | 26.1% | 0.469 (0.413–0.531) | 0.96 (0.88–1.03) |
-| Caucasian | 14,802 | 24.3% | 0.478 (0.447–0.508) | 0.93 (0.89–0.97) |
-| Race unknown | 459 | 6.5% | 0.119 (0.000–0.231) | 1.12 (0.83–1.47) |
+| Female | 10,877 | 23.6% | 0.489 (0.458–0.515) | 0.96 (0.91–1.01) |
+| Male | 9,067 | 22.0% | 0.413 (0.370–0.455) | 0.90 (0.85–0.96) |
+| Age < 50 | 3,276 | 22.4% | 0.524 (0.453–0.598) | 0.94 (0.85–1.01) |
+| Age 50–69 | 7,816 | 20.1% | 0.449 (0.408–0.487) | 0.98 (0.92–1.04) |
+| Age 70+ | 8,852 | 25.5% | 0.439 (0.409–0.471) | 0.90 (0.86–0.95) |
+| African American | 3,775 | 25.0% | 0.462 (0.406–0.520) | 0.96 (0.87–1.03) |
+| Caucasian | 14,802 | 23.1% | 0.464 (0.438–0.492) | 0.93 (0.89–0.97) |
+| Race unknown | 459 | 6.5% | 0.095 (0.000–0.181) | 1.11 (0.82–1.45) |
 
-* Sensitivity is lower for men than for women (gap 0.09) and for patients aged 50 and over than for those under 50.
-* Patients with race recorded as *unknown* (and *Other*: flag rate 12.4%, TPR 0.33) are flagged far less often
+* Sensitivity is lower for men than for women (gap 0.08) and for patients aged 50 and over than for those under 50.
+* Patients with race recorded as *unknown* (and *Other*: flag rate 11.5%, TPR 0.31) are flagged far less often
   and have much lower sensitivity. The groups are small, so the CIs are wide, but the direction is a red flag
   that a deployment review would have to investigate.
 * O/E below 1 in most groups is the same calibration-split offset described above (slight over-prediction).
 * Asian patients (138 test encounters) are below the 200-encounter minimum and are not estimated.
 
 **What drives predictions.** By mean |SHAP|, the top variables are discharge disposition, inpatient visits
-in the prior year, the history feature *maximum earlier inpatient count*, payer code, and the number of earlier
-encounters followed by a readmission ([figure](docs/results/importance.png)). Payer code is a plausible
+in the prior year, the history feature *maximum earlier inpatient count*, medical specialty and payer code
+([figure](docs/results/importance.png)). Payer code is a plausible
 socioeconomic proxy; see the [model card](docs/model_card.md).
 
 Figures: [reliability](docs/results/reliability.png) · [ROC](docs/results/roc.png) ·
@@ -150,7 +160,7 @@ Figures: [reliability](docs/results/reliability.png) · [ROC](docs/results/roc.p
 ```bash
 pip install -e ".[dev]"
 readmit experiment              # history -> diagnoses -> Optuna; writes docs/results/experiment.json (~35 min CPU)
-readmit run-all                 # full study with the selected config -> docs/results/ (a few minutes)
+readmit run-all                 # baseline tuning + full study -> docs/results/ (~12 min on 2 threads)
 readmit run-all --synthetic --out-dir /tmp/smoke   # schema-identical synthetic data; numbers are meaningless
 pytest && ruff check src tests  # tests use synthetic data only, no downloads
 ```

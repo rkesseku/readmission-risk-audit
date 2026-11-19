@@ -18,3 +18,13 @@ FINAL_XGB_PARAMS = {
     "reg_alpha": 0.026034044986388206,
     "gamma": 3.764574733103346,
 }
+
+# Baseline tuning grids. ``run-all`` fits every grid point on the training-fit split and keeps
+# the one with the highest AUROC on the same validation split that the XGBoost Optuna search used
+# (never the calibration or test split), so all three model families are tuned on equal footing.
+LOGISTIC_C_GRID = [1e-4, 1e-3, 1e-2, 1e-1, 1.0, 10.0, 100.0]
+MLP_GRID = [
+    {"hidden": h, "alpha": a}
+    for h in ((32,), (64, 32), (128, 64))
+    for a in (1e-4, 1e-3, 1e-2, 1e-1)
+]

@@ -36,12 +36,12 @@ class LogisticModel:
 class MLPModel:
     name = "mlp"
 
-    def __init__(self, seed: int = 0, hidden=(64, 32), max_iter: int = 200):
+    def __init__(self, seed: int = 0, hidden=(64, 32), alpha: float = 1e-2, max_iter: int = 200):
         self.pipe = make_pipeline(
             StandardScaler(),
             MLPClassifier(
-                hidden_layer_sizes=hidden,
-                alpha=1e-2,
+                hidden_layer_sizes=tuple(hidden),
+                alpha=alpha,
                 batch_size=512,
                 learning_rate_init=1e-3,
                 early_stopping=True,
@@ -85,7 +85,7 @@ class XGBModel:
             eval_metric="logloss",
             early_stopping_rounds=100,
             tree_method="hist",
-            n_jobs=4,
+            n_jobs=2,
             random_state=seed,
         )
 
@@ -111,3 +111,24 @@ class XGBModel:
 
 
 MODELS = {"logistic": LogisticModel, "xgboost": XGBModel, "mlp": MLPModel}
+
+
+def tune_on_validation(cls, grid: list[dict], X_fit, y_fit, X_val, y_val, seed: int = 0,
+                       **fixed) -> dict:
+    """Grid search: fit each configuration on ``X_fit`` and score AUROC on ``X_val``.
+
+    Only the validation split is used for scoring, so calibration and test data stay untouched.
+    Ties go to the earlier grid point. Returns the best configuration and every score.
+    """
+    from sklearn.metrics import roc_auc_score
+
+    if not grid:
+        raise ValueError("empty tuning grid")
+    results = []
+    for params in grid:
+        model = cls(seed=seed, **fixed, **params).fit(X_fit, y_fit, X_val, y_val)
+        auc = float(roc_auc_score(y_val, model.predict_proba(X_val)))
+        results.append({"params": dict(params), "val_auroc": auc})
+    best = max(range(len(results)), key=lambda i: (results[i]["val_auroc"], -i))
+    return {"best_params": results[best]["params"], "best_val_auroc": results[best]["val_auroc"],
+            "grid": results}
