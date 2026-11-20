@@ -78,7 +78,7 @@ The UCI *Diabetes 130-US Hospitals* dataset [@strack2014] contains 101,766 inpat
 
 # Approach
 
-![Study design. Patients, not encounters, are divided into training, calibration and test sets. Models are trained and tuned on the first, chosen and calibrated on the second, and evaluated once on the third.](figures/architecture.png){#fig-arch width=92%}
+![Study design. Patients, not encounters, are divided into training, calibration and test sets. Models are trained and tuned on the first, chosen and calibrated on the second, and evaluated once on the third. Everything inside the dashed frame is computed on the test set.](figures/architecture.png){#fig-arch width=92%}
 
 1. *Leak-free splits.* Patients are randomly assigned 60/20/20 to training, calibration and test sets, so no patient appears in two of them. Within the training set, 15% of patients are held out for early stopping and tuning.
 2. *Features* (257 in total). Counts of prior health-care use, 23 diabetes-medication flags, age and one-hot categories (admission type, discharge destination, specialty, payer, diagnosis groups). *History features* are built only from each patient's **earlier** encounters: how many there were, how many were followed by a readmission, and prior inpatient days. The data has no dates, so encounter-id order stands in for time. A unit test checks that changing a later encounter never changes an earlier feature. *Diagnosis detail* adds ICD-9 chapters and 13 comorbidity flags (heart failure, kidney disease, COPD and others).
