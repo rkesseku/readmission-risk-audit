@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/rkesseku/readmission-risk-audit/actions/workflows/ci.yml/badge.svg)](https://github.com/rkesseku/readmission-risk-audit/actions/workflows/ci.yml)
 
-**30-day hospital readmission risk, evaluated the way a clinical deployment review would evaluate it:**
+**30-day hospital readmission risk, evaluated as a clinical deployment review would evaluate it:**
 patient-level splits, leak-free patient-history features, calibration (Platt, isotonic, Venn-Abers),
 decision-curve analysis, a subgroup fairness audit, and patient-clustered bootstrap confidence intervals
 on every headline number.
@@ -10,19 +10,19 @@ on every headline number.
 ## Why this exists
 
 Most readmission-model write-ups stop at AUROC. A hospital deciding whether to use a model needs
-answers to different questions:
+answers to other questions:
 
 * **Are the probabilities trustworthy?** If the model says 20%, do about 20% of those patients come back?
 * **Is acting on the model better than the obvious alternatives** ("call every discharged patient" or "call nobody")?
 * **Does it work equally well for different patient groups**, or does it miss more readmissions in some?
 * **Is the evaluation free of leakage**, given that the same patient can have many encounters?
 
-This repo answers each of those on a public dataset, with uncertainty attached.
+This repo answers each of these questions on a public dataset, with uncertainty attached.
 
 ## Data
 
 [UCI *Diabetes 130-US Hospitals for years 1999–2008*](https://archive.ics.uci.edu/dataset/296/diabetes+130-us+hospitals+for+years+1999-2008)
-(101,766 inpatient encounters of patients with diabetes, 130 US hospitals; Strack et al., 2014,
+(101,766 inpatient encounters for patients with diabetes at 130 US hospitals, from Strack et al., 2014,
 *BioMed Research International*, "Impact of HbA1c measurement on hospital readmission rates").
 Licence: CC BY 4.0. The data is **not** included in this repo.
 
@@ -32,9 +32,9 @@ curl -L -o diabetes130.zip "https://archive.ics.uci.edu/static/public/296/diabet
 unzip diabetes130.zip   # gives diabetic_data.csv and IDS_mapping.csv
 ```
 
-Cleaning, following Strack et al.: encounters ending in death or hospice are removed (they cannot be
-readmitted); the three diagnosis codes are mapped from ICD-9 to nine disease groups; the target is
-`readmitted == "<30"`. After cleaning: 99,340 encounters from 69,987 patients, 11.3% positive.
+Cleaning follows Strack et al. Encounters ending in death or hospice are removed, since those patients
+cannot be readmitted. The three diagnosis codes are mapped from ICD-9 to nine disease groups, and the
+target is `readmitted == "<30"`. After cleaning, 99,340 encounters from 69,987 patients remain, 11.3% of them positive.
 
 ## Method
 
@@ -52,20 +52,20 @@ readmitted); the three diagnosis codes are mapped from ICD-9 to nine disease gro
 | Fairness | by age band, sex and race: O/E ratio, ECE, TPR and FPR at a 0.15 threshold, each with a clustered-bootstrap CI; groups under 200 test encounters are reported as insufficient |
 | Explanation | exact TreeSHAP from XGBoost's `pred_contribs`, one-hot levels summed back to the source variable |
 
-The 0.15 threshold is illustrative. It corresponds to judging a post-discharge intervention worthwhile
-if it prevents one readmission for every ~5.7 patients flagged needlessly (odds 0.15/0.85). A real
+The 0.15 threshold is illustrative. It corresponds to judging that a post-discharge intervention is worthwhile
+if preventing one readmission justifies flagging about 5.7 patients needlessly (odds 0.15/0.85). A real
 deployment would set it with the clinical team.
 
 ## Results
 
 All numbers below come from `readmit experiment` (seed 0, 50 Optuna trials) followed by `readmit run-all`
 (seed 0, 500 bootstrap draws), recorded in [`docs/results/experiment.json`](docs/results/experiment.json)
-and [`docs/results/metrics.json`](docs/results/metrics.json). Test split: 19,944 encounters from
-13,998 patients, prevalence 11.1%.
+and [`docs/results/metrics.json`](docs/results/metrics.json). The test split has 19,944 encounters from
+13,998 patients, with a prevalence of 11.1%.
 
 **Model-improvement experiment (XGBoost).** Each step builds on the previous one and is kept only if
-AUROC rises on *both* the validation and the calibration split; the test split was never used for selection.
-Test deltas are paired, patient-clustered bootstrap 95% CIs against the original model.
+AUROC rises on *both* the validation and the calibration split. The test split was never used for selection.
+Test deltas are measured against the original model, with paired, patient-clustered bootstrap 95% CIs.
 
 | Step | Validation AUROC | Calibration AUROC | Test AUROC | Test Δ vs. original (95% CI) | Kept |
 |---|---|---|---|---|---|
@@ -78,16 +78,16 @@ Almost all of the gain came from the history features. Richer diagnosis coding a
 selection rule by small margins on validation and calibration (+0.001 and +0.002 to +0.003) but added nothing
 measurable on test. Step 3's validation figure is optimistic because Optuna tuned on that split. The final
 configuration (all three steps) is stored in [`src/readmit/config.py`](src/readmit/config.py), and `run-all` uses it.
-`run-all` now fits XGBoost with 2 threads instead of 4, which moves its test AUROC from the experiment's 0.6883
-to 0.6880 (histogram sums are accumulated in a different order); the experiment table was not re-run.
+`run-all` now fits XGBoost with 2 threads instead of 4. Histogram sums are then accumulated in a different order,
+which moves its test AUROC from the experiment's 0.6883 to 0.6880. The experiment table was not re-run.
 
 **Discrimination and calibration on the test split (final configuration, tuned baselines)**
 
-The validation-split grid search chose logistic `C` = 1.0 (validation AUROC 0.683; the previous fixed
-`C` = 0.1 scored 0.683 as well, and every value from 1e-4 to 1e2 lay within 0.0035) and an MLP with
+The validation-split grid search chose logistic `C` = 1.0, with validation AUROC 0.683. The previous fixed
+`C` = 0.1 scored 0.683 as well, and every value from 1e-4 to 1e2 lay within 0.0035. For the MLP it chose
 hidden layers (128, 64) and `alpha` = 0.1 (validation AUROC 0.671 vs. 0.654 for the previous fixed (64, 32),
 `alpha` = 0.01). XGBoost scored 0.690 on the same split. Selection on the calibration split still picks
-XGBoost (calibration AUROC 0.686 vs. 0.669 logistic and 0.657 MLP).
+XGBoost (calibration AUROC 0.686 vs. 0.669 for logistic regression and 0.657 for the MLP).
 
 | Model | AUROC (95% CI) | AUPRC | Brier | ECE uncalibrated | ECE Venn-Abers |
 |---|---|---|---|---|---|
@@ -96,24 +96,24 @@ XGBoost (calibration AUROC 0.686 vs. 0.669 logistic and 0.657 MLP).
 | MLP (128, 64), `alpha` = 0.1 | 0.667 (0.653–0.682) | 0.214 | 0.0949 | 0.0201 | 0.0086 |
 
 * With both baselines tuned on the same validation split as XGBoost, XGBoost still beats logistic regression,
-  by **+0.011 AUROC** (paired CI +0.006 to +0.017; with the untuned `C` = 0.1 baseline it was +0.012,
-  +0.006 to +0.017). Tuning barely moved logistic regression (test AUROC 0.676 → 0.677), so the earlier
+  by **+0.011 AUROC** (paired CI +0.006 to +0.017). Against the untuned `C` = 0.1 baseline the gap was
+  +0.012 (+0.006 to +0.017). Tuning barely moved logistic regression (test AUROC 0.676 → 0.677), so the earlier
   comparison was not materially inflated. The gap is real but small. Tuning helped the MLP more
   (0.657 → 0.667), cutting XGBoost's lead over it from +0.031 to **+0.022** (+0.014 to +0.029).
 * **Post-hoc calibration did not help the selected model.** Raw XGBoost (trained on log-loss) was already
-  well calibrated (ECE 0.0044, slope 1.04). Venn-Abers gave ECE 0.0089; the paired difference is
-  −0.0045 (95% CI −0.0052 to +0.0016), so the interval still includes zero. The calibration split
-  happens to have a slightly higher readmission rate (11.7%) than test (11.1%), and the calibrators carry
-  that offset over. Calibration clearly helped the MLP (ECE 0.0201 → 0.0086, raw slope 0.69).
-  The lesson: recalibrate when there is evidence of miscalibration, not by reflex.
+  well calibrated (ECE 0.0044, slope 1.04). Venn-Abers gave ECE 0.0089. The paired difference is
+  −0.0045 (95% CI −0.0052 to +0.0016), so the interval includes zero. The calibration split
+  happens to have a slightly higher readmission rate (11.7%) than the test split (11.1%), and the calibrators
+  carry that offset into their test predictions. Calibration clearly helped the MLP (ECE 0.0201 → 0.0086, raw slope 0.69).
+  The lesson is to recalibrate when there is evidence of miscalibration rather than by reflex.
 
 **Clinical utility.** At the 0.15 threshold the selected model (Venn-Abers output) flags 22.9% of
-discharges, catches 45.6% of readmissions (TPR) with PPV 22.1%, and has net benefit
+discharges, catches 45.6% of readmissions (TPR) with PPV 22.1%, and has a net benefit of
 **0.0190 (95% CI 0.0148–0.0233)** against −0.046 for flagging everyone (the original model scored 0.0155).
 Its net benefit is positive and above both default strategies at every threshold from 0.05 to 0.40
 ([decision curve](docs/results/decision_curve.png)).
 
-**Fairness audit** (selected model, Venn-Abers, threshold 0.15; full table in `metrics.json`)
+**Fairness audit** (selected model, Venn-Abers, threshold 0.15, with the full table in `metrics.json`)
 
 | Group | n | Flag rate | TPR (95% CI) | O/E (95% CI) |
 |---|---|---|---|---|
@@ -127,16 +127,16 @@ Its net benefit is positive and above both default strategies at every threshold
 | Race unknown | 459 | 6.5% | 0.095 (0.000–0.181) | 1.11 (0.82–1.45) |
 
 * Sensitivity is lower for men than for women (gap 0.08) and for patients aged 50 and over than for those under 50.
-* Patients with race recorded as *unknown* (and *Other*: flag rate 11.5%, TPR 0.31) are flagged far less often
-  and have much lower sensitivity. The groups are small, so the CIs are wide, but the direction is a red flag
+* Patients with race recorded as *unknown* are flagged far less often and have much lower sensitivity, and the
+  same holds for those recorded as *Other* (flag rate 11.5%, TPR 0.31). The groups are small, so the CIs are wide, but the direction is a red flag
   that a deployment review would have to investigate.
-* O/E below 1 in most groups is the same calibration-split offset described above (slight over-prediction).
+* O/E below 1 in most groups reflects the calibration-split offset described above (slight over-prediction).
 * Asian patients (138 test encounters) are below the 200-encounter minimum and are not estimated.
 
 **What drives predictions.** By mean |SHAP|, the top variables are discharge disposition, inpatient visits
 in the prior year, the history feature *maximum earlier inpatient count*, medical specialty and payer code
 ([figure](docs/results/importance.png)). Payer code is a plausible
-socioeconomic proxy; see the [model card](docs/model_card.md).
+socioeconomic proxy (see the [model card](docs/model_card.md)).
 
 Figures: [reliability](docs/results/reliability.png) · [ROC](docs/results/roc.png) ·
 [decision curve](docs/results/decision_curve.png) · [subgroup audit](docs/results/subgroup_audit.png) ·
@@ -144,16 +144,16 @@ Figures: [reliability](docs/results/reliability.png) · [ROC](docs/results/roc.p
 
 ## Limitations
 
-* **History features rely on a proxy.** `encounter_id` order stands in for time, which is reasonable but
+* **History features rely on a proxy.** `encounter_id` order stands in for time, an assumption that is reasonable but
   unverified for this dataset. Because splits are by patient, a patient's earlier encounters are always in
   the same split, so no information crosses splits. At deployment these features must come from the patient's
   real EHR history, and the definition must match what the hospital actually knows at discharge.
 * One dataset from 1999–2008, one random patient-level split, one seed. There is no temporal or external
   validation (the public data has no dates or hospital identifiers), so performance at a new hospital is unknown.
-* An AUROC around 0.69 is typical of this dataset; it supports ranking patients for a low-cost
-  intervention, not individual-level decisions.
-* The cohort is patients with diabetes only; race, sex and payer are as recorded administratively.
-* The fairness audit measures disparities; it does not establish their cause or fix them.
+* An AUROC around 0.69 is typical of this dataset. That is enough to rank patients for a low-cost
+  intervention but not to make individual-level decisions.
+* The cohort is patients with diabetes only. Race, sex and payer are as recorded administratively.
+* The fairness audit measures disparities but does not establish their cause or fix them.
 
 ## How to run
 
